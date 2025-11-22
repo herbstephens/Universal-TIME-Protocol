@@ -31,3 +31,6 @@ marriagePROOF enables two verified humans to get married on chain.  In addition 
 
 ## Contact
 herb@democracy.earth
+
+## NOTE
+This Github repro and MIT License was created over a month ago in anticipation of the hackathon, however, no code or other elements were created or sumbitted prior to the start of the ETH Global hackathon.
