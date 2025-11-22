@@ -250,9 +250,13 @@ contract HumanBond is Ownable, AutomationCompatibleInterface {
         marriage.active = false;
         marriage.lastClaim = block.timestamp;
 
-        // Update status so they can marry again
+        // Allow remarriage
         isHumanMarried[marriage.nullifierA] = false;
         isHumanMarried[marriage.nullifierB] = false;
+
+        // Clear previous proposals — critical for remarrying
+        delete proposals[marriage.partnerA];
+        delete proposals[marriage.partnerB];
 
         emit MarriageDissolved(
             marriage.partnerA,
@@ -356,12 +360,12 @@ contract HumanBond is Ownable, AutomationCompatibleInterface {
         }
     }
 
-    /* --------------------------- INTERNAL HELPERS -------------------------- */
+    /* --------------------------- HELPER -------------------------- */
     //That makes (A, B) == (B, A)
     function _getMarriageId(
         address a,
         address b
-    ) internal pure returns (bytes32) {
+    ) public pure returns (bytes32) {
         return
             a < b
                 ? keccak256(abi.encodePacked(a, b))

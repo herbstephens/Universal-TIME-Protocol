@@ -326,4 +326,131 @@ contract AutomationFlowTest is Test {
         assertEq(milestoneNFT.tokenYear(0), 1);
         assertEq(milestoneNFT.tokenYear(1), 1);
     }
+
+    //============================ DIVORCE TESTS ============================//
+    function test__DivorceWorks() public {
+        // marry
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        // divorce
+        vm.startPrank(alice);
+        humanBond.divorce(bob);
+        vm.stopPrank();
+
+        bytes32 id = humanBond._getMarriageId(alice, bob);
+        (, , , , , , , bool active) = humanBond.marriages(id);
+
+        assertFalse(active, "Marriage should be inactive after divorce");
+        assertFalse(humanBond.isHumanMarried(1111), "Nullifier A not freed");
+        assertFalse(humanBond.isHumanMarried(2222), "Nullifier B not freed");
+    }
+
+    function test__DivorceDistributesPendingYield() public {
+        // marry
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        // warp 10 days → 10 TIME yield
+        vm.warp(block.timestamp + 10 days);
+
+        vm.startPrank(alice);
+        humanBond.divorce(bob);
+        vm.stopPrank();
+
+        // pending = 10 → split = 5 each
+        assertEq(timeToken.balanceOf(alice), 1 ether + 5 ether);
+        assertEq(timeToken.balanceOf(bob), 1 ether + 5 ether);
+    }
+
+    function test__DivorceTwiceFails() public {
+        // marry
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        humanBond.divorce(bob);
+
+        vm.expectRevert("No active marriage");
+        humanBond.divorce(bob);
+        vm.stopPrank();
+    }
+
+    function test__ClaimYieldAfterDivorceFails() public {
+        // marry
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        // divorce
+        vm.startPrank(alice);
+        humanBond.divorce(bob);
+        vm.stopPrank();
+
+        vm.startPrank(alice);
+        vm.expectRevert(HumanBond.HumanBond__NoActiveMarriage.selector);
+        humanBond.claimYield(bob);
+        vm.stopPrank();
+    }
+
+    function test__RemarryAfterDivorce() public {
+        // ----------- FIRST MARRIAGE -----------
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        // Divorce
+        vm.startPrank(alice);
+        humanBond.divorce(bob);
+        vm.stopPrank();
+
+        // Both nullifiers must be free
+        assertFalse(humanBond.isHumanMarried(1111));
+        assertFalse(humanBond.isHumanMarried(2222));
+
+        // ----------- SECOND MARRIAGE -----------
+        vm.startPrank(alice);
+        humanBond.propose(bob, 1, 1111, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        humanBond.accept(alice, 1, 2222, [uint256(0), 0, 0, 0, 0, 0, 0, 0]);
+        vm.stopPrank();
+
+        // Marriage must be active again
+        bytes32 id = humanBond._getMarriageId(alice, bob);
+        (, , , , , , , bool active) = humanBond.marriages(id);
+        assertTrue(active, "Should be active after remarrying");
+
+        // Both must have received new VowNFTs
+        assertEq(vowNFT.ownerOf(3), alice);
+        assertEq(vowNFT.ownerOf(4), bob);
+
+        // New initial TIME token allocation should be present
+        assertEq(timeToken.balanceOf(alice), 1 ether + 1 ether); // first mint + second mint
+        assertEq(timeToken.balanceOf(bob), 1 ether + 1 ether);
+    }
 }
