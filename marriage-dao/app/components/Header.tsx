@@ -1,6 +1,7 @@
 /**
  * Purpose: Reusable Header component for Marriage DAO
  * Displays the logo in the top-left corner
+ * TODO: Add wallet connection component when wagmi is integrated
  */
 
 import Image from "next/image";
