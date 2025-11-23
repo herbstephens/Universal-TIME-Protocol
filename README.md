@@ -12,11 +12,11 @@ ETHGlobal Buenos Aires 2025 hackathon submission
 marriageDAO enables two verified humans to get married on chain.  In addition to providing 'Proof of Marriage', marriageDAO provides the operating environment for what is essentially is a two-person DAO: common treasury and multi-sig wallet, governance and on-chain history.
 
 ## Features
-- **Automated Marriage Proposal and Acceptance:**  Turning getting married into a few clicks.
+- **Automated Marriage Proposal and Acceptance:**  Turning getting married on-chain into a few clicks.
 - **Unique ENS:**  Sub-domain of marriagedao.eth created for every marriage and updated to registry.
-- **Joint Treasury Management:**  Easing the process of managing money in a joint account.
+- **Joint Treasury Management:**  Easing the process of managing money in a joint account with a multi-sig wallet.
 - **Smart Marriage Registry:**  Offchain registry of married World IDs, useful to dating apps eliminating 'false-singles'.
-- **Instant Divorce:**  Simplifying and reducing costs of the divorcing process - while helping to eliminating lawyers! 
+- **One-click Divorce:**  Simplifying and reducing costs of the divorcing process. 
 
 ## Technologies Used & Prizes Sought
 - **World:**  "Best Mini App" category. 
