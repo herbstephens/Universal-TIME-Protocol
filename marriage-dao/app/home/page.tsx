@@ -13,15 +13,19 @@ import { useAuthStore } from "@/state/authStore";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useWalletAuth } from "@/lib/worldcoin/useWalletAuth";
+import { useUserDashboard } from "@/lib/worldcoin/useUserDashboard";
+import { MarriageDashboard } from "../components/marriage/MarriageDashboard";
 
 export default function HomePage() {
   const router = useRouter();
   const { isVerified, checkVerificationExpiry, verificationData } = useAuthStore();
   const { isConnected, address } = useWalletAuth();
+  const { dashboard, proposal, isLoading: isDashboardLoading, error: dashboardError, refetch } = useUserDashboard();
   const [isLoading, setIsLoading] = useState(true);
 
-  // TODO: Check if user is married when blockchain is integrated
-  const isMarried = false;
+  // Get marriage status from contract
+  const isMarried = dashboard?.isMarried ?? false;
+  const hasProposal = dashboard?.hasProposal ?? false;
 
   // Debug: Log connection state
   useEffect(() => {
@@ -46,8 +50,8 @@ export default function HomePage() {
     setIsLoading(false);
   }, [isVerified, checkVerificationExpiry, router]);
 
-  // Show loading state while checking verification
-  if (isLoading) {
+  // Show loading state while checking verification or fetching dashboard
+  if (isLoading || (isConnected && isDashboardLoading)) {
     return (
       <div className="min-h-screen bg-[#E8E8E8] flex flex-col">
         <Header />
@@ -81,21 +85,46 @@ export default function HomePage() {
               )}
             </div>
 
+            {/* Pending Proposal Alert */}
+            {hasProposal && proposal && (
+              <div className="w-full bg-amber-50 border border-amber-300 rounded-2xl p-6 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">💍</span>
+                  <h3 className="text-lg font-medium text-amber-900">Pending Proposal</h3>
+                </div>
+                <p className="text-sm text-amber-800">
+                  You have already proposed to:
+                </p>
+                <p className="text-xs font-mono bg-amber-100 p-2 rounded-lg text-amber-900 break-all">
+                  {proposal.proposed}
+                </p>
+                <p className="text-xs text-amber-700">
+                  Waiting for them to accept your proposal. You cannot make another proposal until this one is resolved.
+                </p>
+              </div>
+            )}
+
             {/* Title */}
             <h1 className="text-4xl md:text-5xl font-normal text-black tracking-tight">
-              Time to get Married
+              {hasProposal ? "Proposal Sent!" : "Time to get Married"}
             </h1>
 
             {/* Button Container - Only show if wallet is connected */}
             {isConnected ? (
               <div className="bg-[#C4C4C4] rounded-3xl p-8 w-full space-y-4">
                 {/* Make a Proposal Button */}
-                <Link
-                  href="/marriage/create"
-                  className="block w-full bg-black text-white px-8 py-4 rounded-full text-lg font-normal hover:bg-black/90 transition-all duration-200"
-                >
-                  Make a Proposal
-                </Link>
+                {hasProposal ? (
+                  <div className="w-full bg-gray-400 text-white px-8 py-4 rounded-full text-lg font-normal opacity-50 cursor-not-allowed text-center">
+                    Make a Proposal
+                  </div>
+                ) : (
+                  <Link
+                    href="/marriage/create"
+                    className="block w-full bg-black text-white px-8 py-4 rounded-full text-lg font-normal hover:bg-black/90 transition-all duration-200"
+                  >
+                    Make a Proposal
+                  </Link>
+                )}
 
                 {/* Accept a Proposal Button */}
                 <Link
@@ -117,11 +146,9 @@ export default function HomePage() {
             )}
           </div>
         ) : (
-          <div className="flex flex-col items-center text-center space-y-8">
-            <h2 className="text-3xl font-normal text-black">
-              You are already married
-            </h2>
-            {/* TODO: Add MarriageStatus component here when ready */}
+          <div className="flex flex-col items-center text-center">
+            {/* Marriage Dashboard */}
+            {dashboard && <MarriageDashboard dashboard={dashboard} onDivorce={refetch} />}
           </div>
         )}
       </main>
