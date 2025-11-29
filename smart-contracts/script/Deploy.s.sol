@@ -6,22 +6,18 @@ import {VowNFT} from "../src/VowNFT.sol";
 import {IWorldID, HumanBond} from "../src/HumanBond.sol";
 import {MilestoneNFT} from "../src/MilestoneNFT.sol";
 import {TimeToken} from "../src/TimeToken.sol";
+import {ByteHasher} from "../src/helpers/ByteHasher.sol";
 
 /// @notice Dummy World ID verifier for local testing. Replace with the real one on testnet.
 contract DummyWorldID is IWorldID {
-    function verifyProof(
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256[8] calldata
-    ) external pure override {}
+    function verifyProof(uint256, uint256, uint256, uint256, uint256, uint256[8] calldata) external pure override {}
 }
 
 /// @title Deploy Script for HumanBond Protocol
 /// @notice Deploys VowNFT and HumanBond, sets up linkage, and prints addresses.
 contract DeployScript is Script {
+    using ByteHasher for bytes;
+
     function run() external {
         vm.startBroadcast();
 
@@ -29,54 +25,25 @@ contract DeployScript is Script {
         VowNFT vowNFT = new VowNFT();
         MilestoneNFT milestoneNFT = new MilestoneNFT();
         TimeToken timeToken = new TimeToken();
-        DummyWorldID worldId = new DummyWorldID();
+        // DummyWorldID worldId = new DummyWorldID();
 
         //Set milestones metadata URIs BEFORE ownership transfer
-        milestoneNFT.setMilestoneURI(
-            1,
-            "ipfs://QmPAVmWBuJnNgrGrAp34CqTa13VfKkEZkZak8d6E4MJio8"
-        );
-        milestoneNFT.setMilestoneURI(
-            2,
-            "ipfs://QmPTuKXg64EaeyreUFe4PJ1istspMd4G2oe2ArRYrtBGYn"
-        );
-        milestoneNFT.setMilestoneURI(
-            3,
-            "ipfs://Qma32oBrwNNQVR3KS14RHqt3QhgYMsGKabQv4jusdtgsKN"
-        );
-        milestoneNFT.setMilestoneURI(
-            4,
-            "ipfs://QmSw9ixqCVc7VPQzDdX1ZCdWWJwAfLHRdJsi831PsC94uh"
-        );
+        milestoneNFT.setMilestoneURI(1, "ipfs://QmPAVmWBuJnNgrGrAp34CqTa13VfKkEZkZak8d6E4MJio8");
+        milestoneNFT.setMilestoneURI(2, "ipfs://QmPTuKXg64EaeyreUFe4PJ1istspMd4G2oe2ArRYrtBGYn");
+        milestoneNFT.setMilestoneURI(3, "ipfs://Qma32oBrwNNQVR3KS14RHqt3QhgYMsGKabQv4jusdtgsKN");
+        milestoneNFT.setMilestoneURI(4, "ipfs://QmSw9ixqCVc7VPQzDdX1ZCdWWJwAfLHRdJsi831PsC94uh");
         milestoneNFT.freezeMilestones();
 
-        // Nullifier hashes for local testing
-        // uint256 externalNullifierPropose = uint256(keccak256("create-marriage-proposal"));
-
-        // uint256 externalNullifierAccept = uint256(keccak256("accept-marriage-proposal"));
-        uint256 externalNullifierPropose = uint256(
-            bytes32(
-                abi.encodePacked(
-                    keccak256(
-                        abi.encodePacked(appId, "create-marriage-proposal")
-                    )
-                )
-            )
-        );
-
-        uint256 externalNullifierAccept = uint256(
-            bytes32(
-                abi.encodePacked(
-                    keccak256(
-                        abi.encodePacked(appId, "accept-marriage-proposal")
-                    )
-                )
-            )
-        );
+        // Compute external nullifiers and app ID
+        string memory appId = "app_bfc3261816aeadc589f9c6f80a98f5df";
+        uint256 externalNullifierPropose =
+            abi.encodePacked(abi.encodePacked(appId).hashToField(), "propose-bond").hashToField();
+        uint256 externalNullifierAccept =
+            abi.encodePacked(abi.encodePacked(appId).hashToField(), "accept-bond").hashToField();
 
         //Deploy HumanBond main contract
         HumanBond humanBond = new HumanBond(
-            address(worldId), // replace w/ REAL WORLD ID ROUTER
+            0x17B354dD2595411ff79041f930e491A4Df39A278, //REAL WORLD ID ROUTER
             address(vowNFT),
             address(timeToken),
             address(milestoneNFT),
@@ -88,7 +55,7 @@ contract DeployScript is Script {
         milestoneNFT.setHumanBondContract(address(humanBond)); //Link MilestoneNFT to HumanBond
         vowNFT.setHumanBondContract(address(humanBond));
 
-        // Step 4: Set contracts authorization
+        //Set contracts authorization
         vowNFT.transferOwnership(address(humanBond));
         timeToken.transferOwnership(address(humanBond));
         milestoneNFT.transferOwnership(address(humanBond));
@@ -100,7 +67,6 @@ contract DeployScript is Script {
         console.log("MilestoneNFT deployed at:", address(milestoneNFT));
         console.log("HumanBond deployed at:", address(humanBond));
         console.log("Time Token deployed at:", address(timeToken));
-        console.log("DummyWorldID deployed at:", address(worldId));
         console.log("Deployment complete!");
     }
 }
