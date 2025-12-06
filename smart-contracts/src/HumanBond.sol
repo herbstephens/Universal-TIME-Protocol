@@ -8,16 +8,16 @@ import {MilestoneNFT} from "./MilestoneNFT.sol";
 import {ByteHasher} from "./helpers/ByteHasher.sol";
 import {IWorldID} from "../lib/world-id-contracts/src/interfaces/IWorldID.sol";
 
-/* --------------------------- MAIN CONTRACT -------------------------- */
 /**
  * @title HumanBond
  * @author Leticia Azevedo (@letiweb3)
  * @notice Main contract managing verified marriages
  * @dev Uses World ID verification to confirm both users are real humans,
- *      then mints static metadata NFTs and TIME ERC-20 token for each verified bond.
+ *      then mints dynamic metadata NFTs and TIME ERC-20 token for each verified bond.
  */
 contract HumanBond is Ownable {
     using ByteHasher for bytes;
+    /* ----------------------------- CUSTOM ERROS ----------------------------- */
 
     error HumanBond__UserAlreadyMarried();
     error HumanBond__InvalidAddress();
@@ -31,6 +31,7 @@ contract HumanBond is Ownable {
     error HumanBond__InvalidNullifier();
 
     /* ----------------------------- STRUCTS ----------------------------- */
+
     //Represents a pending bond request:
     struct Proposal {
         address proposer;
@@ -44,7 +45,7 @@ contract HumanBond is Ownable {
     struct Marriage {
         address partnerA;
         address partnerB;
-        uint256 nullifierA; // Nullifiers uniquely represent human identities from World ID
+        uint256 nullifierA;
         uint256 nullifierB;
         uint256 bondStart;
         uint256 lastClaim;
@@ -75,8 +76,10 @@ contract HumanBond is Ownable {
         uint256 timeBalance;
     }
 
-    /* --------------------------- STATE VARS --------------------------- */
-    mapping(address => Proposal) public proposals;
+    /* --------------------------- STATE VARS and MAPPINGS --------------------------- */
+    mapping(address => Proposal) public proposals; // proposer address => Proposal struct
+    mapping(address => address[]) public proposalsFor; // proposed address => array of proposers
+    mapping(address => uint256) public proposerIndex; // proposer address => index in proposalsFor[proposed]
     mapping(bytes32 => Marriage) public marriages;
     mapping(address => bytes32) public activeMarriageOf; // quick lookup of active marriage ID by user address
     mapping(uint256 => mapping(uint256 => bool)) public usedNullifier; //key usedNullifier by externalNullifier.
@@ -96,22 +99,9 @@ contract HumanBond is Ownable {
     /* ----------------------------- EVENTS ----------------------------- */
     event ProposalCreated(address indexed proposer, address indexed proposed);
     event ProposalAccepted(address indexed partnerA, address indexed partnerB);
-    event YieldClaimed(
-        address indexed partnerA,
-        address indexed partnerB,
-        uint256 rewardEach
-    );
-    event AnniversaryAchieved(
-        address indexed partnerA,
-        address indexed partnerB,
-        uint256 year,
-        uint256 timestamp
-    );
-    event MarriageDissolved(
-        address indexed partnerA,
-        address indexed partnerB,
-        uint256 timestamp
-    );
+    event YieldClaimed(address indexed partnerA, address indexed partnerB, uint256 rewardEach);
+    event AnniversaryAchieved(address indexed partnerA, address indexed partnerB, uint256 year, uint256 timestamp);
+    event MarriageDissolved(address indexed partnerA, address indexed partnerB, uint256 timestamp);
     event ProposalCancelled(address indexed proposer, address indexed proposed);
 
     /* --------------------------- CONSTRUCTOR -------------------------- */
@@ -132,33 +122,22 @@ contract HumanBond is Ownable {
         milestoneNFT = MilestoneNFT(_milestoneNFT);
 
         // Compute external nullifiers exactly as World ID expects, define action domain for proofs
-        externalNullifierPropose = abi
-            .encodePacked(
-                abi.encodePacked(_appId).hashToField(),
-                _actionPropose
-            )
-            .hashToField();
+        externalNullifierPropose =
+            abi.encodePacked(abi.encodePacked(_appId).hashToField(), _actionPropose).hashToField();
 
-        externalNullifierAccept = abi
-            .encodePacked(abi.encodePacked(_appId).hashToField(), _actionAccept)
-            .hashToField();
+        externalNullifierAccept = abi.encodePacked(abi.encodePacked(_appId).hashToField(), _actionAccept).hashToField();
         DAY = _day;
         YEAR = _year;
     }
 
-    /* ---------------------------- FUNCTIONS --------------------------- */
+    /* ---------------------------- MAIN FUNCTIONS --------------------------- */
 
     /// @notice Propose a bond to another verified human using World ID.
     /// @param proposed The address of the person being proposed to.
     /// @param root The World ID root from the proof.
     /// @param proposerNullifier The unique nullifier preventing proof re-use.
     /// @param proof The zero-knowledge proof array.
-    function propose(
-        address proposed,
-        uint256 root,
-        uint256 proposerNullifier,
-        uint256[8] calldata proof
-    ) external {
+    function propose(address proposed, uint256 root, uint256 proposerNullifier, uint256[8] calldata proof) external {
         uint256 signalHash = abi.encodePacked(msg.sender).hashToField(); //prove msg.sender is signer
 
         if (proposed == address(0)) {
@@ -172,10 +151,7 @@ contract HumanBond is Ownable {
             revert HumanBond__ProposalAlreadyExists();
         }
 
-        if (
-            activeMarriageOf[msg.sender] != bytes32(0) ||
-            activeMarriageOf[proposed] != bytes32(0)
-        ) {
+        if (activeMarriageOf[msg.sender] != bytes32(0) || activeMarriageOf[proposed] != bytes32(0)) {
             revert HumanBond__UserAlreadyMarried();
         }
         if (usedNullifier[externalNullifierPropose][proposerNullifier]) {
@@ -201,6 +177,7 @@ contract HumanBond is Ownable {
             accepted: false,
             timestamp: block.timestamp
         });
+        _addProposal(msg.sender, proposed); //track who proposed to whom
 
         emit ProposalCreated(msg.sender, proposed);
     }
@@ -210,12 +187,7 @@ contract HumanBond is Ownable {
     /// @param root The World ID root from the proof.
     /// @param acceptorNullifier The unique nullifier preventing proof re-use.
     /// @param proof The zero-knowledge proof array.
-    function accept(
-        address proposer,
-        uint256 root,
-        uint256 acceptorNullifier,
-        uint256[8] calldata proof
-    ) external {
+    function accept(address proposer, uint256 root, uint256 acceptorNullifier, uint256[8] calldata proof) external {
         Proposal storage proposalOfProposer = proposals[proposer]; //retrieving the struct stored in the proposals mapping, previously created in the propose()
         uint256 signalHash = abi.encodePacked(msg.sender).hashToField();
 
@@ -225,21 +197,12 @@ contract HumanBond is Ownable {
         if (usedNullifier[externalNullifierAccept][acceptorNullifier]) {
             revert HumanBond__InvalidNullifier();
         } //not reaching, UserAlreadyMarried in propose fires first
-        if (
-            activeMarriageOf[proposer] != bytes32(0) ||
-            activeMarriageOf[msg.sender] != bytes32(0)
-        ) {
+        if (activeMarriageOf[proposer] != bytes32(0) || activeMarriageOf[msg.sender] != bytes32(0)) {
             revert HumanBond__UserAlreadyMarried();
         } //not reaching, propose function reverts before
 
         // Verify acceptor is also a real human
-        worldId.verifyProof(
-            root,
-            signalHash,
-            acceptorNullifier,
-            externalNullifierAccept,
-            proof
-        );
+        worldId.verifyProof(root, signalHash, acceptorNullifier, externalNullifierAccept, proof);
 
         bytes32 marriageId = _getMarriageId(proposer, msg.sender);
         if (marriages[marriageId].active) {
@@ -265,41 +228,23 @@ contract HumanBond is Ownable {
         activeMarriageOf[msg.sender] = marriageId;
         delete proposals[proposer]; // Clear previous proposals — critical for remarrying
         delete proposals[msg.sender];
+        _removeProposal(proposer, msg.sender); //remove proposal from tracking mappings
 
         marriageIds.push(marriageId); //store the marriageId for future iteration
 
-        // Mint identical NFTs for both
-        // vowNFT.mintVowNFT(proposer);
-        // vowNFT.mintVowNFT(msg.sender);
-        // mint for proposer
-        vowNFT.mintVowNFT(
-            proposer,
-            proposer,
-            msg.sender,
-            block.timestamp,
-            marriageId
-        );
+        // Mint identical NFTs for both partners
+        vowNFT.mintVowNFT(proposer, proposer, msg.sender, block.timestamp, marriageId);
+        vowNFT.mintVowNFT(msg.sender, proposer, msg.sender, block.timestamp, marriageId);
 
-        // mint for acceptor
-        vowNFT.mintVowNFT(
-            msg.sender,
-            proposer,
-            msg.sender,
-            block.timestamp,
-            marriageId
-        );
-
-        // Reward both parties with 1 DAY token immediately
+        // Reward both parties with 1 token each immediately
         timeToken.mint(proposer, 1 ether);
         timeToken.mint(msg.sender, 1 ether);
 
         emit ProposalAccepted(proposer, msg.sender);
     }
 
-    /**
-     * @notice Allows either partner to dissolve the marriage.
-     *         Pending yield is distributed evenly, and both are marked unmarried.
-     */
+    /// @notice Allows either partner to dissolve the marriage.
+    ///         Pending yield is distributed evenly, and both are marked unmarried.
     function divorce(address partner) external {
         bytes32 marriageId = _getMarriageId(msg.sender, partner); //reuses deterministic pair ID system.
         Marriage storage marriage = marriages[marriageId];
@@ -308,11 +253,9 @@ contract HumanBond is Ownable {
             revert HumanBond__NoActiveMarriage();
         }
 
-        if (
-            msg.sender != marriage.partnerA && msg.sender != marriage.partnerB
-        ) {
+        if (msg.sender != marriage.partnerA && msg.sender != marriage.partnerB) {
             revert HumanBond__NotYourMarriage();
-        }
+        } //not reaching because if marriage id is invalid, marriage.active is false and reverts first.
 
         uint256 reward = _pendingYield(marriageId); //calculates how much DAY they earned since the last claim.
         // Claim pending yield (1 token/day shared) before divorce
@@ -330,14 +273,13 @@ contract HumanBond is Ownable {
         activeMarriageOf[marriage.partnerA] = bytes32(0);
         activeMarriageOf[marriage.partnerB] = bytes32(0);
 
-        emit MarriageDissolved(
-            marriage.partnerA,
-            marriage.partnerB,
-            block.timestamp
-        );
+        emit MarriageDissolved(marriage.partnerA, marriage.partnerB, block.timestamp);
     }
 
     /* ---------------------------- YIELD LOGIC --------------------------- */
+
+    /// @dev Calculate pending yield for a marriage.
+    /// @param marriageId The unique ID representing the marriage.
     function _pendingYield(bytes32 marriageId) internal view returns (uint256) {
         Marriage storage marriage = marriages[marriageId];
         if (!marriage.active) return 0; // non-reverting for views
@@ -345,6 +287,8 @@ contract HumanBond is Ownable {
         return daysElapsed * 1 ether; // 1 DAY token per full day
     }
 
+    /// @notice Claim accumulated yield for the calling user's marriage.
+    /// @param partner The address of the calling user's partner.
     function claimYield(address partner) external {
         bytes32 marriageId = _getMarriageId(msg.sender, partner);
         Marriage storage marriage = marriages[marriageId];
@@ -364,143 +308,155 @@ contract HumanBond is Ownable {
         emit YieldClaimed(marriage.partnerA, marriage.partnerB, split);
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                           NFT MILESTONE LOGIC                              */
-    /* -------------------------------------------------------------------------- */
+    /* ---------------------------- NFT's MINTING LOGIC --------------------------- */
 
+    /// @notice Manually check and mint milestone NFTs for both partners based on years together.
+    ///         if they missed previous years, mint all missing years up to current.
     function manualCheckAndMint(address partner) external {
-        bytes32 id = _getMarriageId(msg.sender, partner);
-        Marriage storage m = marriages[id];
+        bytes32 id = _getMarriageId(msg.sender, partner); //get the deterministic marriageId of the couple
+        Marriage storage m = marriages[id]; // get the marriage struct based on the id
 
-        if (!m.active) {
-            revert HumanBond__NoActiveMarriage();
+        if (!m.active) revert HumanBond__NoActiveMarriage();
+
+        address a = m.partnerA;
+        address b = m.partnerB;
+        if (msg.sender != a && msg.sender != b) {
+            revert HumanBond__NotYourMarriage();
         }
-        if (msg.sender != m.partnerA && msg.sender != m.partnerB) {
-            revert HumanBond__NotYourMarriage(); // Ensure caller is one of the partners
-        }
 
-        uint256 yearsTogether = (block.timestamp - m.bondStart) / YEAR;
-        uint256 maxYear = milestoneNFT.latestYear();
+        uint256 bondStart = m.bondStart; //timestamp when the marriage started
+        uint256 yearsTogether = (block.timestamp - bondStart) / YEAR; //calculate how many years they've been together
+        uint256 lastClaimed = m.lastMilestoneYear; // the last milestone year they claimed NFTs for
 
-        // No new year achieved
-        if (
-            yearsTogether <= m.lastMilestoneYear ||
-            yearsTogether == 0 ||
-            yearsTogether > maxYear
-        ) {
+        uint256 highestYearSet = milestoneNFT.latestYear(); // get the max year defined in the MilestoneNFT contract, avoid minting for years that don't exist
+
+        // If no milestones set since last claim or zero years together, revert
+        if (yearsTogether <= lastClaimed || yearsTogether == 0) {
             revert HumanBond__NothingToClaim();
         }
 
-        // Mint for both partners
-        milestoneNFT.mintMilestone(m.partnerA, yearsTogether);
-        milestoneNFT.mintMilestone(m.partnerB, yearsTogether);
+        // if yearsTogether exceeds highestYearSet, cap it to highestYearSet
+        uint256 endYear = yearsTogether > highestYearSet ? highestYearSet : yearsTogether;
+        uint256 startYear = lastClaimed + 1; // the year after the last claimed milestone, +1 to avoid double minting
 
-        // Update state
-        m.lastMilestoneYear = yearsTogether;
+        // if the last claimed year is already the highest year set, nothing to mint
+        if (startYear > endYear) revert HumanBond__NothingToClaim();
 
-        emit AnniversaryAchieved(
-            m.partnerA,
-            m.partnerB,
-            yearsTogether,
-            block.timestamp
-        );
+        // --- Mint all missing years ---
+        for (uint256 y = startYear; y <= endYear;) {
+            milestoneNFT.mintMilestone(a, y);
+            milestoneNFT.mintMilestone(b, y);
+
+            emit AnniversaryAchieved(a, b, y, block.timestamp);
+
+            unchecked {
+                y++; // gas saving
+            }
+        }
+
+        m.lastMilestoneYear = endYear;
     }
 
-    /* --------------------------- HELPER -------------------------- */
-    //That makes (A, B) == (B, A)
-    function _getMarriageId(
-        address a,
-        address b
-    ) public pure returns (bytes32) {
-        return
-            a < b
-                ? keccak256(abi.encodePacked(a, b))
-                : keccak256(abi.encodePacked(b, a));
-    }
+    /* --------------------------- PROPOSALS ------------------------------- */
 
-    /* --------------------------- PROPOSALS -------------------------- */
+    /// @notice Cancel an existing proposal made by the caller.
     function cancelProposal() external {
         Proposal memory proposalOfProposer = proposals[msg.sender];
         if (proposalOfProposer.proposer == address(0)) {
             revert HumanBond__InvalidAddress();
         }
         delete proposals[msg.sender];
+        _removeProposal(msg.sender, proposalOfProposer.proposed);
+
         emit ProposalCancelled(msg.sender, proposalOfProposer.proposed);
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                           GETTERS FUNCTIONS                                */
-    /* -------------------------------------------------------------------------- */
-    /**
-     * @dev Get active marriage info for a couple
-     */
-    function getMarriage(
-        address a,
-        address b
-    ) external view returns (Marriage memory) {
+    /* --------------------------- INTERNAL HELPER -------------------------- */
+
+    /// @dev Internal function to add a proposal to the tracking mappings.
+    function _addProposal(address proposer, address proposed) internal {
+        proposalsFor[proposed].push(proposer);
+        proposerIndex[proposer] = proposalsFor[proposed].length - 1;
+    }
+
+    /// @dev Internal function to remove a proposal from the tracking mappings.
+    function _removeProposal(address proposer, address proposed) internal {
+        uint256 idx = proposerIndex[proposer];
+        uint256 lastIdx = proposalsFor[proposed].length - 1;
+
+        if (idx != lastIdx) {
+            // swap with last element
+            address lastProposer = proposalsFor[proposed][lastIdx];
+            proposalsFor[proposed][idx] = lastProposer;
+            proposerIndex[lastProposer] = idx;
+        }
+
+        proposalsFor[proposed].pop();
+        delete proposerIndex[proposer];
+    }
+
+    /// @dev Generate a unique marriage ID for a couple based on their addresses.
+    ///      Order of addresses does not matter.
+    function _getMarriageId(address a, address b) public pure returns (bytes32) {
+        return a < b ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
+    }
+
+    /* --------------------------- GETTERS FUNCTIONS -------------------------- */
+
+    /// @dev Get all incoming proposals for a user, meaning proposals made to them.
+    function getIncomingProposals(address user) external view returns (Proposal[] memory) {
+        address[] memory proposers = proposalsFor[user];
+        Proposal[] memory incoming = new Proposal[](proposers.length);
+
+        for (uint256 i = 0; i < proposers.length; i++) {
+            incoming[i] = proposals[proposers[i]];
+        }
+
+        return incoming;
+    }
+
+    /// @dev Get active marriage struct for a couple, e.g. addresses, timestamps, status.
+    function getMarriage(address a, address b) external view returns (Marriage memory) {
         return marriages[_getMarriageId(a, b)];
     }
 
-    /**
-     * @dev Check if two addresses are currently married
-     */
+    /// @dev Get deterministic marriage ID for a couple.
+    function getMarriageId(address a, address b) external pure returns (bytes32) {
+        return _getMarriageId(a, b);
+    }
+
+    /// @dev Check if two addresses are currently married
     function isMarried(address a, address b) external view returns (bool) {
         return marriages[_getMarriageId(a, b)].active;
     }
 
-    /**
-     * @dev Get proposal info for a proposer
-     */
-    function getProposal(
-        address proposer
-    ) external view returns (Proposal memory) {
+    /// @dev Get proposal info for a proposer
+    function getProposal(address proposer) external view returns (Proposal memory) {
         return proposals[proposer];
     }
 
-    /**
-     * @dev Get proposal info for a proposer
-     */
+    /// @dev Get proposal info for a proposer
     function hasPendingProposal(address proposer) external view returns (bool) {
         return proposals[proposer].proposer != address(0);
     }
 
-    /**
-     * @dev Get the current pending yield for a couple
-     */
-    function getPendingYield(
-        address a,
-        address b
-    ) external view returns (uint256) {
+    /// @dev Get the current pending yield for a couple
+    function getPendingYield(address a, address b) external view returns (uint256) {
         return _pendingYield(_getMarriageId(a, b));
     }
 
-    /**
-     * @dev Get the current milestone year for a couple
-     */
-    function getCurrentMilestoneYear(
-        address a,
-        address b
-    ) external view returns (uint256) {
+    /// @dev Get the current milestone year for a couple
+    function getCurrentMilestoneYear(address a, address b) external view returns (uint256) {
         return marriages[_getMarriageId(a, b)].lastMilestoneYear;
     }
 
-    /**
-     * @dev Get the bond start timestamp for a couple
-     */
-    function getBondStart(
-        address a,
-        address b
-    ) external view returns (uint256) {
+    /// @dev Get the bond start timestamp for a couple
+    function getBondStart(address a, address b) external view returns (uint256) {
         return marriages[_getMarriageId(a, b)].bondStart;
     }
 
-    /**
-     * @dev Get a read-only view struct for a couple's marriage
-     */
-    function getMarriageView(
-        address a,
-        address b
-    ) external view returns (MarriageView memory v) {
+    /// @dev Get a read-only view struct for a couple's marriage details
+    function getMarriageView(address a, address b) external view returns (MarriageView memory v) {
         bytes32 id = _getMarriageId(a, b);
         Marriage memory m = marriages[id];
 
@@ -518,16 +474,10 @@ contract HumanBond is Ownable {
         });
     }
 
-    function getUserDashboard(
-        address user
-    ) external view returns (UserDashboard memory d) {
-        //Load the user’s proposal (could be empty)
-        Proposal memory p = proposals[user];
+    /// @dev Get user dashboard info: marriage status, pending yield, TIME balance, proposal status
+    function getUserDashboard(address user) external view returns (UserDashboard memory d) {
         //Read active marriage
         bytes32 marriageId = activeMarriageOf[user];
-
-        d.hasProposal = p.proposer != address(0);
-        d.timeBalance = timeToken.balanceOf(user); // load user’s TIME balance
 
         if (marriageId == bytes32(0)) {
             // User is NOT married

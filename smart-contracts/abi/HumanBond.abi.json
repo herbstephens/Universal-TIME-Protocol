@@ -23,12 +23,27 @@
         "internalType": "address"
       },
       {
-        "name": "_externalNullifierPropose",
+        "name": "_appId",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_actionPropose",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_actionAccept",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "_day",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "_externalNullifierAccept",
+        "name": "_year",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -37,7 +52,20 @@
   },
   {
     "type": "function",
-    "name": "GROUP_ID",
+    "name": "DAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "YEAR",
     "inputs": [],
     "outputs": [
       {
@@ -118,6 +146,13 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancelProposal",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -221,6 +256,52 @@
   },
   {
     "type": "function",
+    "name": "getIncomingProposals",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct HumanBond.Proposal[]",
+        "components": [
+          {
+            "name": "proposer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "proposed",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "proposerNullifier",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "accepted",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getMarriage",
     "inputs": [
       {
@@ -287,6 +368,30 @@
   },
   {
     "type": "function",
+    "name": "getMarriageId",
+    "inputs": [
+      {
+        "name": "a",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "b",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "getMarriageView",
     "inputs": [
       {
@@ -350,6 +455,11 @@
             "name": "pendingYield",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "marriageId",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
       }
@@ -493,25 +603,6 @@
   },
   {
     "type": "function",
-    "name": "isHumanMarried",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "isMarried",
     "inputs": [
       {
@@ -537,7 +628,13 @@
   {
     "type": "function",
     "name": "manualCheckAndMint",
-    "inputs": [],
+    "inputs": [
+      {
+        "name": "partner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -681,6 +778,30 @@
   },
   {
     "type": "function",
+    "name": "proposalsFor",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "propose",
     "inputs": [
       {
@@ -706,6 +827,25 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "proposerIndex",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -739,6 +879,30 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "usedNullifier",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -862,6 +1026,25 @@
   },
   {
     "type": "event",
+    "name": "ProposalCancelled",
+    "inputs": [
+      {
+        "name": "proposer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "proposed",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "ProposalCreated",
     "inputs": [
       {
@@ -917,6 +1100,11 @@
   {
     "type": "error",
     "name": "HumanBond__InvalidAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HumanBond__InvalidNullifier",
     "inputs": []
   },
   {

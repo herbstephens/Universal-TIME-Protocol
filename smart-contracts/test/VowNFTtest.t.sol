@@ -1,9 +1,8 @@
-// test/VowNFTTest.t.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../src/VowNFT.sol"; // adjust path if needed
+import "../src/VowNFT.sol";
 
 contract VowNFTTest is Test {
     VowNFT public vow;
@@ -11,7 +10,6 @@ contract VowNFTTest is Test {
     address public bob = address(0xB2);
     address public stranger = address(0xC3);
     bytes32 public marriageId;
-    bytes32 constant SAMPLE_MARRIAGE_ID = 0xcb19919446850e9100c23ccc300afeb40e2bb3dbc80ffd0925f159d99a0c2034;
 
     function setUp() public {
         // deploy and set this test contract as the authorized minter (humanBondContract)
@@ -31,23 +29,6 @@ contract VowNFTTest is Test {
             if (w[i] != p[i]) return false;
         }
         return true;
-    }
-
-    function _contains(string memory what, string memory needle) internal pure returns (bool) {
-        bytes memory w = bytes(what);
-        bytes memory n = bytes(needle);
-        if (n.length > w.length) return false;
-        for (uint256 i = 0; i <= w.length - n.length; i++) {
-            bool ok = true;
-            for (uint256 j = 0; j < n.length; j++) {
-                if (w[i + j] != n[j]) {
-                    ok = false;
-                    break;
-                }
-            }
-            if (ok) return true;
-        }
-        return false;
     }
 
     /* ---------------------------
@@ -101,7 +82,7 @@ contract VowNFTTest is Test {
     }
 
     function test_console_log_tokenURI_for_manual_inspection() public {
-        uint256 t1 = vow.mintVowNFT(alice, alice, bob, 1_610_000_000, SAMPLE_MARRIAGE_ID);
+        uint256 t1 = vow.mintVowNFT(alice, alice, bob, 1_610_000_000, marriageId);
         string memory uri = vow.tokenURI(t1);
 
         // prints during `forge test -vv` so you can copy/paste to a browser or base64 decoder
@@ -118,12 +99,13 @@ contract VowNFTTest is Test {
        --------------------------- */
 
     function test_setImageCID_onlyOwner() public {
-        // owner (this contract) can set
-        vow.setImageCID("ipfs://NEWCID");
+        vow.setImageCID("ipfs://12345"); // owner (this contract) can set
+        assertEq(vow.imageCID(), "ipfs://12345");
+
         // non-owner cannot
-        vm.prank(address(0xDEAD));
-        vm.expectRevert(); // Ownable reverts — exact message can vary by OZ version
-        vow.setImageCID("ipfs://NOPE");
+        vm.prank(address(0x999));
+        vm.expectRevert(); // Ownable reverts
+        vow.setImageCID("ipfs://54321");
     }
 
     function test_setHumanBondContract_onlyOwner() public {
@@ -132,10 +114,17 @@ contract VowNFTTest is Test {
         // restore to this
         vow.setHumanBondContract(address(this));
 
-        // non-owner cannot set
-        vm.prank(address(0x999));
+        vm.prank(address(0x999)); // non-owner cannot
         vm.expectRevert();
-        vow.setHumanBondContract(address(0x999));
+        vow.setHumanBondContract(address(0x123));
+    }
+
+    function test_mintVowNFT_reverts_ifNotAuthorizedHumanBond() public {
+        vow.setHumanBondContract(address(0x111));
+
+        vm.prank(address(0x222));
+        vm.expectRevert(VowNFT.VowNFT__UnauthorizedMinter.selector);
+        vow.mintVowNFT(alice, alice, bob, 1, marriageId);
     }
 
     /* ---------------------------
@@ -150,5 +139,12 @@ contract VowNFTTest is Test {
         vm.prank(alice);
         vm.expectRevert(VowNFT.VowNFT__TransfersDisabled.selector);
         vow.transferFrom(alice, stranger, 1);
+    }
+
+    function test_selfTransfer_allowed() public {
+        vow.mintVowNFT(alice, alice, bob, 1, marriageId);
+
+        vm.prank(alice);
+        vow.transferFrom(alice, alice, 1); // should NOT revert
     }
 }

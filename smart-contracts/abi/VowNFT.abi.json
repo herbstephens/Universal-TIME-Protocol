@@ -69,6 +69,59 @@
   },
   {
     "type": "function",
+    "name": "getTokenMetadata",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "partnerA",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "partnerB",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "bondStart",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "marriageId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTokensByMarriage",
+    "inputs": [
+      {
+        "name": "marriageId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256[2]",
+        "internalType": "uint256[2]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "humanBondContract",
     "inputs": [],
     "outputs": [
@@ -76,6 +129,19 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "imageCID",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "stateMutability": "view"
@@ -106,13 +172,24 @@
   },
   {
     "type": "function",
-    "name": "metadataTokenURI",
-    "inputs": [],
+    "name": "marriageToToken",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
     "outputs": [
       {
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -125,6 +202,26 @@
         "name": "to",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_partnerA",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_partnerB",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_bondStart",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "_marriageId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -272,6 +369,19 @@
   },
   {
     "type": "function",
+    "name": "setImageCID",
+    "inputs": [
+      {
+        "name": "newCid",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "supportsInterface",
     "inputs": [
       {
@@ -304,13 +414,34 @@
   },
   {
     "type": "function",
-    "name": "tokenId",
-    "inputs": [],
-    "outputs": [
+    "name": "tokenMetadata",
+    "inputs": [
       {
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "partnerA",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "partnerB",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "bondStart",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "marriageId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -320,7 +451,7 @@
     "name": "tokenURI",
     "inputs": [
       {
-        "name": "idOfToken",
+        "name": "id",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -330,6 +461,19 @@
         "name": "",
         "type": "string",
         "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalSupply",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -465,6 +609,31 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "VowMinted",
+    "inputs": [
+      {
+        "name": "marriageId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "ERC721IncorrectOwner",
     "inputs": [
@@ -586,6 +755,22 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "StringsInsufficientHexLength",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

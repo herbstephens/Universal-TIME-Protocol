@@ -8,8 +8,9 @@ import {Base64} from "openzeppelin-contracts/contracts/utils/Base64.sol";
 
 /**
  * @title VowNFT
- * @dev ERC721 token representing a verified human bond.
- *      Uses a single static IPFS metadata URI for all minted tokens.
+ * @author Leticia Azevedo (@letiweb3)
+ * @dev ERC-721 token representing a verified human bond.
+ *      Each NFT stores metadata about the two partners, bond start date, and a unique marriage ID.
  */
 contract VowNFT is ERC721, Ownable {
     using Strings for uint256;

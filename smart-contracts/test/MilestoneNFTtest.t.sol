@@ -19,13 +19,13 @@ contract MilestoneNFTTest is Test {
     /*                          ADMIN TESTS                           */
     /* -------------------------------------------------------------- */
 
-    function test_ownerCanSetMilestoneURI() public {
+    function test_SetMilestoneURI_onlyOwnerCanSet() public {
         milestone.setMilestoneURI(1, "ipfs://CID1");
         assertEq(milestone.milestoneURIs(1), "ipfs://CID1");
     }
 
     function test_revert_setMilestoneURI_nonOwner() public {
-        vm.prank(address(0x123));
+        vm.prank(user);
         vm.expectRevert();
         milestone.setMilestoneURI(1, "ipfs://CID1");
     }
@@ -63,7 +63,7 @@ contract MilestoneNFTTest is Test {
         milestone.setMilestoneURI(1, "ipfs://CID1");
 
         vm.expectRevert(MilestoneNFT.MilestoneNFT__NotAuthorized.selector);
-        milestone.mintMilestone(user, 1);
+        milestone.mintMilestone(user, 1); //msg.sender is calling and not humanBond
     }
 
     function test_revert_mintMilestone_missingURI() public {
@@ -88,7 +88,7 @@ contract MilestoneNFTTest is Test {
 
     function test_revert_tokenURI_notMinted() public {
         vm.expectRevert();
-        milestone.tokenURI(999);
+        milestone.tokenURI(10);
     }
 
     /* -------------------------------------------------------------- */

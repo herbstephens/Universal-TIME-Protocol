@@ -135,14 +135,14 @@
     "name": "milestoneURIs",
     "inputs": [
       {
-        "name": "",
+        "name": "year",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "metadata",
         "type": "string",
         "internalType": "string"
       }
@@ -182,19 +182,6 @@
         "name": "",
         "type": "string",
         "internalType": "string"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "nextTokenId",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -399,6 +386,19 @@
         "internalType": "uint256"
       }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalSupply",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -709,6 +709,11 @@
   },
   {
     "type": "error",
+    "name": "MilestoneNFT__TransfersDisabled",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "MilestoneNFT__URI_NotFound",
     "inputs": [
       {
@@ -739,10 +744,5 @@
         "internalType": "address"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "SoulboundNFT__TransfersDisabled",
-    "inputs": []
   }
 ]

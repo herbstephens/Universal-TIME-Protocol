@@ -7,6 +7,8 @@ import {HumanBond} from "../src/HumanBond.sol";
 import {MilestoneNFT} from "../src/MilestoneNFT.sol";
 import {TimeToken} from "../src/TimeToken.sol";
 
+// import {MockWorldID} from "../test/utils/MockWorldId.sol";
+
 /// @title Deploy Script for HumanBond Protocol
 /// @notice Deploys VowNFT and HumanBond, sets up linkage, and prints addresses.
 contract DeployScript is Script {
@@ -17,14 +19,13 @@ contract DeployScript is Script {
         VowNFT vowNFT = new VowNFT();
         MilestoneNFT milestoneNFT = new MilestoneNFT();
         TimeToken timeToken = new TimeToken();
-        address WORLD_ID_ROUTER_FOR_TESTING = 0x469449f251692E0779667583026b5A1E99512157; // World ID Router on Sepolia
+        // MockWorldID mockWorldID = new MockWorldID();
 
-        //Set milestones metadata URIs BEFORE ownership transfer
+        address WORLD_ID_ROUTER_REAL = 0x17B354dD2595411ff79041f930e491A4Df39A278; // World ID Router mainnet address
+
+        //Set milestones pleaceholders metadata URIs
         milestoneNFT.setMilestoneURI(1, "ipfs://QmPAVmWBuJnNgrGrAp34CqTa13VfKkEZkZak8d6E4MJio8");
         milestoneNFT.setMilestoneURI(2, "ipfs://QmPTuKXg64EaeyreUFe4PJ1istspMd4G2oe2ArRYrtBGYn");
-        milestoneNFT.setMilestoneURI(3, "ipfs://Qma32oBrwNNQVR3KS14RHqt3QhgYMsGKabQv4jusdtgsKN");
-        milestoneNFT.setMilestoneURI(4, "ipfs://QmSw9ixqCVc7VPQzDdX1ZCdWWJwAfLHRdJsi831PsC94uh");
-        milestoneNFT.freezeMilestones();
 
         // Compute external nullifiers and app ID
         string memory appId = "app_bfc3261816aeadc589f9c6f80a98f5df";
@@ -33,25 +34,21 @@ contract DeployScript is Script {
 
         //Deploy HumanBond main contract
         HumanBond humanBond = new HumanBond(
-            0x17B354dD2595411ff79041f930e491A4Df39A278, //REAL WORLD ID ROUTER
+            WORLD_ID_ROUTER_REAL,
             address(vowNFT),
             address(timeToken),
             address(milestoneNFT),
             appId,
             actionPropose,
             actionAccept,
-            1 minutes,
-            3 minutes
+            1 days,
+            365 days
         );
 
         //Link contracts
         milestoneNFT.setHumanBondContract(address(humanBond)); //Link MilestoneNFT to HumanBond
         vowNFT.setHumanBondContract(address(humanBond));
-
-        //Set contracts authorization
-        vowNFT.transferOwnership(address(humanBond));
-        timeToken.transferOwnership(address(humanBond));
-        milestoneNFT.transferOwnership(address(humanBond));
+        timeToken.setHumanBondContract(address(humanBond));
 
         vm.stopBroadcast();
 

@@ -6,9 +6,10 @@ import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 /**
  * @title MilestoneNFT
+ * @author Leticia Azevedo (@letiweb3)
  * @notice Soulbound-style NFT collection that represents relationship anniversaries.
- *         Each year milestone can have its own metadata URI (IPFS link) defined by the owner.
- *         Only the HumanBond contract can mint new NFTs automatically.
+ *         Each year milestone can have its own metadata URI defined by the owner.
+ *         Only the HumanBond contract can mint new NFTs.
  */
 contract MilestoneNFT is ERC721, Ownable {
     error MilestoneNFT__TransfersDisabled();
@@ -22,7 +23,7 @@ contract MilestoneNFT is ERC721, Ownable {
 
     uint256 public totalSupply; // Counter for minted NFTs
     address public humanBondContract; // Authorized minter
-    mapping(uint256 => string) public milestoneURIs; // year => IPFS URI
+    mapping(uint256 year => string metadata) public milestoneURIs; // year => IPFS URI
     mapping(uint256 => uint256) public tokenYear; // tokenId => milestone year
     uint256 public latestYear; // Highest milestone year set
     bool public frozen; // Prevents further edits once locked
@@ -115,6 +116,9 @@ contract MilestoneNFT is ERC721, Ownable {
     /* -------------------------------------------------------------------------- */
 
     /// @notice Returns the token URI based on the milestone year of the token.
+    /// @dev Reverts if the URI for the token's year is not set.
+    /// @param tokenId The ID of the token.
+    /// @return The metadata URI associated with the token's milestone year.
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
         uint256 year = tokenYear[tokenId];
@@ -128,6 +132,7 @@ contract MilestoneNFT is ERC721, Ownable {
     /*                             SOULBOUND OVERRIDES                             */
     /* -------------------------------------------------------------------------- */
 
+    /// @dev Override to disable transfers, making the NFT soulbound.
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         // Allow mint (from == 0x0)
         address from = _ownerOf(tokenId);
